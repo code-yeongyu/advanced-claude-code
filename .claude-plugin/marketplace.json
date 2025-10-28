@@ -1,0 +1,19 @@
+{
+  "name": "claude-code-essentials-marketplace",
+  "owner": {
+    "name": "YeonGyu Kim",
+    "email": "public.kim.yeon.gyu@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-essentials",
+      "source": "./claude-code-plugins/claude-code-essentials",
+      "description": "Essential productivity features for Claude Code: session backup, PR creation, and more",
+      "version": "0.1.0",
+      "author": {
+        "name": "YeonGyu Kim",
+        "email": "public.kim.yeon.gyu@gmail.com"
+      }
+    }
+  ]
+}
