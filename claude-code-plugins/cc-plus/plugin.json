@@ -9,5 +9,11 @@
   },
   "homepage": "https://github.com/code-yeongyu/cc-plus",
   "repository": "https://github.com/code-yeongyu/cc-plus",
-  "license": "MIT"
+  "license": "MIT",
+  "commands": {
+    "share": {
+      "description": "Export current session as markdown file",
+      "file": "commands/share.md"
+    }
+  }
 }
