@@ -1,4 +1,4 @@
-# Claude Code Essentials
+# CC Plus
 
 Essential productivity features that should exist in Claude Code but don't - packaged as convenient plugins.
 
@@ -28,39 +28,39 @@ Create GitHub Pull Requests directly from Claude Code with proper templates.
 
 ```bash
 # Clone the repository
-git clone https://github.com/code-yeongyu/advanced-claude-code.git
+git clone https://github.com/code-yeongyu/cc-plus.git
 
 # Install the marketplace
-claude plugin install advanced-claude-code/.claude-plugin/marketplace.json
+claude plugin install cc-plus/.claude-plugin/marketplace.json
 ```
 
 ### Option 2: Install Plugin Directly
 
 ```bash
 # Clone the repository
-git clone https://github.com/code-yeongyu/advanced-claude-code.git
+git clone https://github.com/code-yeongyu/cc-plus.git
 
 # Copy plugin to your Claude Code plugins directory
-cp -r advanced-claude-code/claude-code-plugins/claude-code-essentials ~/.claude/plugins/
+cp -r cc-plus/claude-code-plugins/cc-plus ~/.claude/plugins/
 ```
 
 ### Option 3: Manual Installation (For Development)
 
 ```bash
 # Clone the repository
-git clone https://github.com/code-yeongyu/advanced-claude-code.git
-cd advanced-claude-code
+git clone https://github.com/code-yeongyu/cc-plus.git
+cd cc-plus
 
 # Symlink individual components
 mkdir -p ~/.claude/hooks ~/.claude/skills
 
 # Hooks
-ln -s "$(pwd)/claude-code-plugins/claude-code-essentials/hooks/pre_compact.py" ~/.claude/hooks/
-ln -s "$(pwd)/claude-code-plugins/claude-code-essentials/hooks/pre-compact" ~/.claude/hooks/
+ln -s "$(pwd)/claude-code-plugins/cc-plus/hooks/pre_compact.py" ~/.claude/hooks/
+ln -s "$(pwd)/claude-code-plugins/cc-plus/hooks/pre-compact" ~/.claude/hooks/
 
 # Skills
-ln -s "$(pwd)/claude-code-plugins/claude-code-essentials/skills/share-session" ~/.claude/skills/
-ln -s "$(pwd)/claude-code-plugins/claude-code-essentials/skills/pr-creator" ~/.claude/skills/
+ln -s "$(pwd)/claude-code-plugins/cc-plus/skills/share-session" ~/.claude/skills/
+ln -s "$(pwd)/claude-code-plugins/cc-plus/skills/pr-creator" ~/.claude/skills/
 ```
 
 ## Usage
@@ -100,19 +100,19 @@ Use these plugins in GitHub Actions:
     mkdir -p ~/.claude
 
     # Install from repository
-    git clone https://github.com/code-yeongyu/advanced-claude-code.git /tmp/essentials
-    cp -r /tmp/essentials/claude-code-plugins/claude-code-essentials/* ~/.claude/
+    git clone https://github.com/code-yeongyu/cc-plus.git /tmp/cc-plus
+    cp -r /tmp/cc-plus/claude-code-plugins/cc-plus/* ~/.claude/
 ```
 
 
 ## File Structure
 
 ```
-advanced-claude-code/
+cc-plus/
 ├── .claude-plugin/
 │   └── marketplace.json                 # Marketplace definition
 ├── claude-code-plugins/
-│   └── claude-code-essentials/
+│   └── cc-plus/
 │       ├── plugin.json                  # Plugin metadata
 │       ├── hooks/
 │       │   ├── pre_compact.py          # Hook orchestrator

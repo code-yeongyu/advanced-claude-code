@@ -1,13 +1,13 @@
 {
-  "name": "claude-code-essentials-marketplace",
+  "name": "cc-plus-marketplace",
   "owner": {
     "name": "YeonGyu Kim",
     "email": "public.kim.yeon.gyu@gmail.com"
   },
   "plugins": [
     {
-      "name": "claude-code-essentials",
-      "source": "./claude-code-plugins/claude-code-essentials",
+      "name": "cc-plus",
+      "source": "./claude-code-plugins/cc-plus",
       "description": "Essential productivity features for Claude Code: session backup, PR creation, and more",
       "version": "0.1.0",
       "author": {

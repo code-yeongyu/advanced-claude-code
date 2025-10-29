@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-essentials",
+  "name": "cc-plus",
   "version": "0.1.0",
   "description": "Essential productivity features for Claude Code: session backup, PR creation, and workflow automation",
   "author": {
@@ -7,7 +7,7 @@
     "email": "public.kim.yeon.gyu@gmail.com",
     "url": "https://github.com/code-yeongyu"
   },
-  "homepage": "https://github.com/code-yeongyu/advanced-claude-code",
-  "repository": "https://github.com/code-yeongyu/advanced-claude-code",
+  "homepage": "https://github.com/code-yeongyu/cc-plus",
+  "repository": "https://github.com/code-yeongyu/cc-plus",
   "license": "MIT"
 }
