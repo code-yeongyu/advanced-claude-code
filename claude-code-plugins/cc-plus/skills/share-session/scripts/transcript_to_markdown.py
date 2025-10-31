@@ -230,8 +230,10 @@ def convert_transcript_to_markdown(transcript_path: Path, output_path: Path | No
 
     last_share_index = find_last_share_command_index(messages)
     if last_share_index is not None:
-        messages = messages[: last_share_index + 1]
-        console.print(f"[yellow]📍 Truncating at last /share command (message #{last_share_index + 1})[/yellow]")
+        messages = messages[:last_share_index]
+        console.print(
+            f"[yellow]📍 Truncating before /share command (excluded message #{last_share_index + 1})[/yellow]"
+        )
 
     build_tool_map(messages)
 

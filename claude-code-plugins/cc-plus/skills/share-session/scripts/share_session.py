@@ -342,8 +342,10 @@ def convert_transcript_to_markdown(transcript_path: Path, output_path: Path) -> 
 
     last_share_index = find_last_share_command_index(messages)
     if last_share_index is not None:
-        messages = messages[: last_share_index + 1]
-        console.print(f"[yellow]📍 Truncating at last /share command (message #{last_share_index + 1})[/yellow]")
+        messages = messages[:last_share_index]
+        console.print(
+            f"[yellow]📍 Truncating before /share command (excluded message #{last_share_index + 1})[/yellow]"
+        )
 
     console.print("[cyan]Fetching pricing data...[/cyan]")
     try:
@@ -473,39 +475,7 @@ def convert_transcript_to_markdown(transcript_path: Path, output_path: Path) -> 
             content_items = message_data.get("content", [])
 
             if is_meta:
-                match content_items:
-                    case str():
-                        md_lines.extend(
-                            [
-                                "<details>",
-                                f"<summary>📋 System Context #{i}</summary>",
-                                "",
-                                "```",
-                                content_items,
-                                "```",
-                                "",
-                                "</details>",
-                                "",
-                            ]
-                        )
-                    case list():
-                        text_items = [
-                            item.get("text", "")
-                            for item in content_items
-                            if isinstance(item, dict) and item.get("type") == "text"
-                        ]
-                        if text_items:
-                            md_lines.extend(
-                                [
-                                    "<details>",
-                                    f"<summary>📋 System Context #{i}</summary>",
-                                    "",
-                                    "```",
-                                ]
-                            )
-                            for text in text_items:
-                                md_lines.append(text)
-                            md_lines.extend(["```", "", "</details>", ""])
+                continue
             else:
                 match content_items:
                     case str():

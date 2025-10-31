@@ -31,7 +31,7 @@ Examples of identifiable values:
 Run the single unified script (always keep in mind of where the script is located):
 
 ```bash
-uv run --script python scripts/share_session.py "your identifiable query"
+uv run --script scripts/share_session.py "your identifiable query"
 ```
 
 The script automatically does everything:
@@ -81,7 +81,7 @@ The single script generates comprehensive markdown with:
 
 **Usage:**
 ```bash
-uv run --script python scripts/share_session.py <query>
+uv run --script scripts/share_session.py <query>
 ```
 
 **Complete features:**
