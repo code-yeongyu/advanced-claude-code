@@ -283,6 +283,39 @@ def calculate_message_cost(
     return total_cost, token_breakdown
 
 
+def find_last_share_command_index(messages: list[dict[str, Any]]) -> int | None:
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+
+        if msg.get("type") == "compact_marker":
+            continue
+
+        if msg.get("type") != "user":
+            continue
+
+        message_data = msg.get("message", {})
+        content = message_data.get("content", [])
+
+        match content:
+            case str():
+                if (
+                    "<command-name>/share</command-name>" in content
+                    or "<command-name>/cc-plus:share</command-name>" in content
+                ):
+                    return i
+            case list():
+                for item in content:
+                    if isinstance(item, dict):
+                        text = item.get("text", "")
+                        if (
+                            "<command-name>/share</command-name>" in text
+                            or "<command-name>/cc-plus:share</command-name>" in text
+                        ):
+                            return i
+
+    return None
+
+
 def convert_transcript_to_markdown(transcript_path: Path, output_path: Path) -> None:
     if not transcript_path.exists():
         console.print(f"[red]Error: Transcript file not found: {transcript_path}[/red]")
@@ -306,6 +339,11 @@ def convert_transcript_to_markdown(transcript_path: Path, output_path: Path) -> 
 
     if is_warmup_message(messages):
         messages = filter_warmup_pair(messages)
+
+    last_share_index = find_last_share_command_index(messages)
+    if last_share_index is not None:
+        messages = messages[: last_share_index + 1]
+        console.print(f"[yellow]📍 Truncating at last /share command (message #{last_share_index + 1})[/yellow]")
 
     console.print("[cyan]Fetching pricing data...[/cyan]")
     try:
