@@ -5,7 +5,6 @@
 #     "orjson",
 #     "thefuzz",
 #     "rich",
-#     "httpx",
 # ]
 # ///
 
@@ -17,25 +16,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, NotRequired, TypedDict
 
-import httpx  # pyright: ignore[reportMissingImports]
-import orjson  # pyright: ignore[reportMissingImports]
-from rich.console import Console  # pyright: ignore[reportMissingImports]
-from thefuzz import fuzz  # pyright: ignore[reportMissingImports]
+import orjson
+from rich.console import Console
+from thefuzz import fuzz
 
 console = Console()
 
-LITELLM_PRICING_URL = (
-    "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/model_prices_and_context_window.json"
-)
 
-
-class ModelPricing(TypedDict):
-    input_cost_per_token: NotRequired[float]
-    output_cost_per_token: NotRequired[float]
-    cache_creation_input_token_cost: NotRequired[float]
-    cache_read_input_token_cost: NotRequired[float]
-    litellm_provider: str
-    mode: str
+class SessionUsageData(TypedDict):
+    sessionId: str
+    inputTokens: int
+    outputTokens: int
+    cacheCreationTokens: int
+    cacheReadTokens: int
+    totalTokens: int
+    totalCost: float
+    lastActivity: str
+    modelsUsed: list[str]
+    modelBreakdowns: NotRequired[list[dict[str, Any]]]
 
 
 def extract_session_id_from_filename(filename: str) -> str | None:
@@ -133,6 +131,72 @@ def create_merged_transcript(session_id: str, current_transcript: Path) -> Path 
         return current_transcript
 
 
+def fetch_session_usage_from_ccusage(session_id: str) -> SessionUsageData | None:
+    try:
+        result = subprocess.run(
+            ["bunx", "--bun", "ccusage", "session", "-i", session_id, "--json"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+
+        data = orjson.loads(result.stdout)
+
+        if not isinstance(data, dict):
+            console.print("[red]Error: Unexpected ccusage output format[/red]")
+            return None
+
+        total_input = 0
+        total_output = 0
+        total_cache_creation = 0
+        total_cache_read = 0
+        models_used_set: set[str] = set()
+
+        entries = data.get("entries", [])
+        for entry in entries:
+            total_input += entry.get("inputTokens", 0)
+            total_output += entry.get("outputTokens", 0)
+            total_cache_creation += entry.get("cacheCreationTokens", 0)
+            total_cache_read += entry.get("cacheReadTokens", 0)
+
+            model = entry.get("model")
+            if model:
+                models_used_set.add(model)
+
+        total_tokens = data.get("totalTokens", 0)
+        total_cost = data.get("totalCost", 0.0)
+
+        last_activity = ""
+        if entries:
+            last_entry = entries[-1]
+            last_timestamp = last_entry.get("timestamp", "")
+            if last_timestamp:
+                last_activity = last_timestamp.split("T")[0]
+
+        return SessionUsageData(
+            sessionId=data.get("sessionId", session_id),
+            inputTokens=total_input,
+            outputTokens=total_output,
+            cacheCreationTokens=total_cache_creation,
+            cacheReadTokens=total_cache_read,
+            totalTokens=total_tokens,
+            totalCost=total_cost,
+            lastActivity=last_activity,
+            modelsUsed=sorted(models_used_set),
+        )
+
+    except subprocess.TimeoutExpired:
+        console.print("[red]Error: ccusage command timed out[/red]")
+        return None
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Error calling ccusage: {e.stderr}[/red]")
+        return None
+    except Exception as e:
+        console.print(f"[red]Error fetching session usage: {e}[/red]")
+        return None
+
+
 def escape_xml_tags(text: str) -> str:
     return text.replace("<", r"\<").replace(">", r"\>")
 
@@ -193,16 +257,6 @@ def format_tool_parameters(params: dict[str, Any]) -> str:
     return "\n\n".join(lines)
 
 
-def fetch_pricing_data() -> dict[str, ModelPricing]:
-    with httpx.Client(timeout=30.0) as client:
-        response = client.get(LITELLM_PRICING_URL)
-        response.raise_for_status()
-        data = orjson.loads(response.content)
-        if "sample_spec" in data:
-            del data["sample_spec"]
-        return data
-
-
 def extract_text_from_message(msg: dict[str, Any]) -> str:
     message_data = msg.get("message", {})
     content_items = message_data.get("content", [])
@@ -249,40 +303,6 @@ def filter_warmup_pair(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return filtered_messages
 
 
-def calculate_message_cost(
-    usage: dict[str, Any], model: str, pricing_data: dict[str, ModelPricing]
-) -> tuple[float, dict[str, int]]:
-    pricing = pricing_data.get(model)
-    if not pricing:
-        return 0.0, {}
-
-    input_tokens = usage.get("input_tokens", 0)
-    output_tokens = usage.get("output_tokens", 0)
-    cache_creation_tokens = usage.get("cache_creation_input_tokens", 0)
-    cache_read_tokens = usage.get("cache_read_input_tokens", 0)
-
-    input_rate = pricing.get("input_cost_per_token", 0.0)
-    output_rate = pricing.get("output_cost_per_token", 0.0)
-    cache_creation_rate = pricing.get("cache_creation_input_token_cost", 0.0)
-    cache_read_rate = pricing.get("cache_read_input_token_cost", 0.0)
-
-    total_cost = (
-        input_tokens * input_rate
-        + output_tokens * output_rate
-        + cache_creation_tokens * cache_creation_rate
-        + cache_read_tokens * cache_read_rate
-    )
-
-    token_breakdown = {
-        "input": input_tokens,
-        "output": output_tokens,
-        "cache_creation": cache_creation_tokens,
-        "cache_read": cache_read_tokens,
-    }
-
-    return total_cost, token_breakdown
-
-
 def find_last_share_command_index(messages: list[dict[str, Any]]) -> int | None:
     for i in range(len(messages) - 1, -1, -1):
         msg = messages[i]
@@ -316,7 +336,9 @@ def find_last_share_command_index(messages: list[dict[str, Any]]) -> int | None:
     return None
 
 
-def convert_transcript_to_markdown(transcript_path: Path, output_path: Path) -> None:
+def convert_transcript_to_markdown(
+    transcript_path: Path, output_path: Path, session_id: str, usage_data: SessionUsageData | None
+) -> None:
     if not transcript_path.exists():
         console.print(f"[red]Error: Transcript file not found: {transcript_path}[/red]")
         sys.exit(1)
@@ -347,26 +369,8 @@ def convert_transcript_to_markdown(transcript_path: Path, output_path: Path) -> 
             f"[yellow]📍 Truncating before /share command (excluded message #{last_share_index + 1})[/yellow]"
         )
 
-    console.print("[cyan]Fetching pricing data...[/cyan]")
-    try:
-        pricing_data = fetch_pricing_data()
-        console.print("[green]✓ Pricing data loaded[/green]")
-    except Exception as e:
-        console.print(f"[yellow]⚠ Could not fetch pricing data: {e}[/yellow]")
-        pricing_data = {}
-
-    total_cost = 0.0
-    total_input_tokens = 0
-    total_output_tokens = 0
-    total_cache_creation_tokens = 0
-    total_cache_read_tokens = 0
-    models_used: dict[str, int] = {}
-
     first_timestamp: datetime | None = None
     last_timestamp: datetime | None = None
-    last_user_timestamp: datetime | None = None
-    llm_time_seconds = 0.0
-    llm_started = False
 
     for msg in messages:
         msg_type = msg.get("type")
@@ -381,80 +385,112 @@ def convert_transcript_to_markdown(transcript_path: Path, output_path: Path) -> 
                 first_timestamp = timestamp_dt
             last_timestamp = timestamp_dt
 
-        match msg_type:
-            case "user":
-                last_user_timestamp = timestamp_dt
-                llm_started = False
-            case "assistant":
-                if last_user_timestamp and timestamp_dt and not llm_started:
-                    llm_duration = (timestamp_dt - last_user_timestamp).total_seconds()
-                    llm_time_seconds += llm_duration
-                    llm_started = True
-
-                message_data = msg.get("message", {})
-                usage = message_data.get("usage")
-                if usage:
-                    model = message_data.get("model", "unknown")
-                    models_used[model] = models_used.get(model, 0) + 1
-
-                    cost, breakdown = calculate_message_cost(usage, model, pricing_data)
-                    total_cost += cost
-                    total_input_tokens += breakdown.get("input", 0)
-                    total_output_tokens += breakdown.get("output", 0)
-                    total_cache_creation_tokens += breakdown.get("cache_creation", 0)
-                    total_cache_read_tokens += breakdown.get("cache_read", 0)
-
-    total_tokens = total_input_tokens + total_output_tokens + total_cache_creation_tokens + total_cache_read_tokens
-
     total_session_time = 0.0
     if first_timestamp and last_timestamp:
         total_session_time = (last_timestamp - first_timestamp).total_seconds()
 
+    class Turn(TypedDict):
+        user_timestamp: datetime | None
+        last_assistant_timestamp: datetime | None
+
+    turns: list[Turn] = []
+    current_turn: Turn | None = None
+
+    for msg in messages:
+        msg_type = msg.get("type")
+        if msg_type == "compact_marker":
+            continue
+
+        timestamp_str = msg.get("timestamp", "")
+        timestamp_dt = parse_timestamp_to_datetime(timestamp_str)
+
+        match msg_type:
+            case "user":
+                if current_turn:
+                    turns.append(current_turn)
+
+                current_turn = Turn(user_timestamp=timestamp_dt, last_assistant_timestamp=None)
+
+            case "assistant":
+                if current_turn and timestamp_dt:
+                    current_turn["last_assistant_timestamp"] = timestamp_dt
+
+    if current_turn:
+        turns.append(current_turn)
+
+    llm_active_time_total = 0.0
+    llm_idle_time_total = 0.0
+
+    for i, turn in enumerate(turns):
+        user_ts = turn["user_timestamp"]
+        last_asst_ts = turn["last_assistant_timestamp"]
+
+        if user_ts and last_asst_ts:
+            active_duration = (last_asst_ts - user_ts).total_seconds()
+            llm_active_time_total += active_duration
+
+        if i + 1 < len(turns):
+            next_turn = turns[i + 1]
+            next_user_ts = next_turn["user_timestamp"]
+            if last_asst_ts and next_user_ts:
+                idle_duration = (next_user_ts - last_asst_ts).total_seconds()
+                llm_idle_time_total += idle_duration
+
     md_lines = [
         "# 🤖 Claude Code Session Transcript",
         "",
-        f"**Session ID**: `{messages[0].get('sessionId', 'unknown')}`",
+        f"**Session ID**: `{session_id}`",
         f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"**Messages**: {len(messages)}",
         "",
         "## 📊 Session Statistics",
         "",
-        f"**Models Used**: {', '.join(f'{model} ({count})' for model, count in models_used.items())}",
-        "",
-        "### Token Usage",
-        "",
-        f"- **Input Tokens**: {total_input_tokens:,}",
-        f"- **Output Tokens**: {total_output_tokens:,}",
-        f"- **Cache Creation**: {total_cache_creation_tokens:,}",
-        f"- **Cache Read**: {total_cache_read_tokens:,}",
-        f"- **Total Tokens**: {total_tokens:,}",
-        "",
-        "### 💰 Cost Estimate",
-        "",
-        f"- **Total Cost**: ${total_cost:.6f}",
     ]
 
-    if total_tokens > 0 and total_cache_read_tokens > 0:
-        cache_hit_rate = (total_cache_read_tokens / total_tokens) * 100
-        md_lines.append(f"- **Cache Hit Rate**: {cache_hit_rate:.2f}%")
+    if usage_data:
+        models_str = ", ".join(usage_data["modelsUsed"])
+        md_lines.extend(
+            [
+                f"**Models Used**: {models_str}",
+                "",
+                "### Token Usage",
+                "",
+                f"- **Input Tokens**: {usage_data['inputTokens']:,}",
+                f"- **Output Tokens**: {usage_data['outputTokens']:,}",
+                f"- **Cache Creation**: {usage_data['cacheCreationTokens']:,}",
+                f"- **Cache Read**: {usage_data['cacheReadTokens']:,}",
+                f"- **Total Tokens**: {usage_data['totalTokens']:,}",
+                "",
+                "### 💰 Cost Estimate",
+                "",
+                f"- **Total Cost**: ${usage_data['totalCost']:.6f}",
+            ]
+        )
 
-    if total_cost > 0:
-        assistant_count = len([m for m in messages if m.get("type") == "assistant"])
-        if assistant_count > 0:
-            avg_cost_per_msg = total_cost / assistant_count
-            md_lines.append(f"- **Average Cost per Message**: ${avg_cost_per_msg:.6f}")
+        if usage_data["totalTokens"] > 0 and usage_data["cacheReadTokens"] > 0:
+            cache_hit_rate = (usage_data["cacheReadTokens"] / usage_data["totalTokens"]) * 100
+            md_lines.append(f"- **Cache Hit Rate**: {cache_hit_rate:.2f}%")
+
+        if usage_data["totalCost"] > 0:
+            assistant_count = len([m for m in messages if m.get("type") == "assistant"])
+            if assistant_count > 0:
+                avg_cost_per_msg = usage_data["totalCost"] / assistant_count
+                md_lines.append(f"- **Average Cost per Message**: ${avg_cost_per_msg:.6f}")
+    else:
+        md_lines.append("**Warning**: Session usage data not available from ccusage")
 
     if total_session_time > 0:
         md_lines.extend(["", "### ⏱️ Session Timeline", ""])
         md_lines.append(f"- **Total Session Time**: {format_duration(total_session_time)}")
-        md_lines.append(f"- **LLM Active Time**: {format_duration(llm_time_seconds)}")
 
-        wait_time = total_session_time - llm_time_seconds
-        if wait_time > 0:
-            md_lines.append(f"- **Wait Time**: {format_duration(wait_time)}")
+        if llm_active_time_total > 0:
+            md_lines.append(f"- **LLM Active Time**: {format_duration(llm_active_time_total)}")
 
-        if total_session_time > 0:
-            utilization = (llm_time_seconds / total_session_time) * 100
+        if llm_idle_time_total > 0:
+            md_lines.append(f"- **LLM Idle Time**: {format_duration(llm_idle_time_total)}")
+
+        if llm_active_time_total > 0 and total_session_time > 0:
+            utilization = (llm_active_time_total / total_session_time) * 100
             md_lines.append(f"- **LLM Utilization**: {utilization:.1f}%")
 
     md_lines.extend(["", "---", ""])
@@ -580,7 +616,9 @@ def convert_transcript_to_markdown(transcript_path: Path, output_path: Path) -> 
 
     output_path.write_text(markdown_content, encoding="utf-8")
     console.print(f"[green]✅ Markdown saved to: {output_path}[/green]")
-    console.print(f"\n[bold green]💰 Total Session Cost: ${total_cost:.6f}[/bold green]")
+
+    if usage_data:
+        console.print(f"\n[bold green]💰 Total Session Cost: ${usage_data['totalCost']:.6f}[/bold green]")
 
 
 def convert_to_markdown(session_id: str) -> Path | None:
@@ -598,6 +636,14 @@ def convert_to_markdown(session_id: str) -> Path | None:
     if backups:
         console.print(f"[cyan]Found {len(backups)} pre-compact backup(s). Merging...[/cyan]")
 
+    console.print("[cyan]Fetching session usage from ccusage...[/cyan]")
+    usage_data = fetch_session_usage_from_ccusage(session_id)
+
+    if usage_data:
+        console.print("[green]✓ Session usage data loaded[/green]")
+    else:
+        console.print("[yellow]⚠ Could not fetch session usage data from ccusage[/yellow]")
+
     output_dir = Path("/tmp/claude-code-sessions")
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -605,7 +651,7 @@ def convert_to_markdown(session_id: str) -> Path | None:
     output_file = output_dir / f"{session_id}-{date_str}.md"
 
     try:
-        convert_transcript_to_markdown(merged_transcript_path, output_file)
+        convert_transcript_to_markdown(merged_transcript_path, output_file, session_id, usage_data)
         return output_file
     except Exception as e:
         console.print(f"[red]Error during conversion: {e}[/red]")
