@@ -1,6 +1,6 @@
 {
   "name": "cc-plus",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Essential productivity features for Claude Code: session backup, PR creation, and workflow automation",
   "author": {
     "name": "YeonGyu Kim",
