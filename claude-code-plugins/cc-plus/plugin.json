@@ -17,9 +17,15 @@
     }
   },
   "hooks": {
-    "PreCompact": {
-      "type": "command",
-      "command": "uv run --script hooks/pre_compact.py"
-    }
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --script hooks/pre_compact.py"
+          }
+        ]
+      }
+    ]
   }
 }
