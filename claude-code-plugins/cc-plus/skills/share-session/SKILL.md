@@ -14,28 +14,44 @@ If this is loaded by user's explicit request but no comments there, just execute
 
 ### Step 1: CRITICAL - Create Todo for Session Identification
 
-**MANDATORY**: You MUST use TodoWrite tool to create a todo item that describes the current session content.
+**MANDATORY**: You MUST use TodoWrite tool to create a todo item that describes **what this session is about**.
+
+**IMPORTANT**: You do NOT need to know the session ID. Describe the session content instead.
 
 **CORRECT Usage:**
 ```python
 TodoWrite(todos=[{
-    "content": "share this current session about topic X",
+    "content": "share this session about ccusage integration and time tracking",
     "status": "in_progress",
     "activeForm": "Sharing session"
 }])
 ```
 
-**Examples:**
-- "share this session about ccusage integration"
-- "export conversation on time tracking improvements"
-- "convert current session to markdown"
+**Good Examples (describe session topic):**
+- ✅ "share this session about ccusage integration"
+- ✅ "export conversation on implementing time tracking"
+- ✅ "share current session with share-session improvements"
+
+**Bad Examples (using session ID directly):**
+- ❌ "get session id of 62d3a2b2-102c-43d3-8414-0a30d7a5e5e0" (you don't know session ID yet!)
+- ❌ "export 62d3a2b2" (session ID unknown)
+
+**How it works:**
+1. You create todo with **session description**
+2. Claude Code saves todo as: `~/.claude/todos/{SESSION-ID}.json`
+3. Script searches todo **content** using fuzzy matching (60% threshold)
+4. Script extracts SESSION-ID from the matching todo **filename**
+5. Script uses that SESSION-ID to find transcript
 
 **Why this is required:**
-- The script uses fuzzy matching (60% threshold) on todo content to find the session ID
-- The todo file name contains the session ID: `{session-id}.json` or `{session-id}-agent-{session-id}.json`
-- Without a todo, the script CANNOT identify which session to export
+- Without a todo, the script has no way to identify which session to export
+- The todo file name is the ONLY place where session ID is stored
+- Fuzzy matching allows flexible queries ("share this session" matches multiple variations)
 
-**Common mistake:** Forgetting to call TodoWrite before running the script
+**Common mistakes:**
+- ❌ Forgetting to call TodoWrite before running the script
+- ❌ Using session ID in todo content (you don't know it yet!)
+- ❌ Query in Step 2 doesn't match todo content at all
 
 ### Step 2: Run share_session.py
 
