@@ -1,6 +1,6 @@
 {
   "name": "cc-plus",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Essential productivity features for Claude Code: session backup, PR creation, and workflow automation",
   "author": {
     "name": "YeonGyu Kim",
@@ -15,17 +15,5 @@
       "description": "Export current session as markdown file",
       "file": "commands/share.md"
     }
-  },
-  "hooks": {
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run --script hooks/pre_compact.py"
-          }
-        ]
-      }
-    ]
   }
 }

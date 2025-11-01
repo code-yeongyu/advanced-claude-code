@@ -1,0 +1,15 @@
+{
+  "description": "Session backup before compaction",
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre_compact.py"
+          }
+        ]
+      }
+    ]
+  }
+}
