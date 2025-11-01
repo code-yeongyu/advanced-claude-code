@@ -15,5 +15,11 @@
       "description": "Export current session as markdown file",
       "file": "commands/share.md"
     }
+  },
+  "hooks": {
+    "PreCompact": {
+      "type": "command",
+      "command": "uv run --script hooks/pre_compact.py"
+    }
   }
 }
