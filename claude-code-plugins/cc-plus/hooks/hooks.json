@@ -1,5 +1,4 @@
 {
-  "description": "Session backup before compaction",
   "hooks": {
     "PreCompact": [
       {
